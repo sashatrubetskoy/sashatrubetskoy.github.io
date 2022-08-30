@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<style type="text/css">
+
+/* On mouse hover, lighten state color */
+path:hover {
+	fill-opacity: .7;
+}
+circle:hover {
+	fill-opacity: .7;
+}
+
+/* Legend Font Style */
+body {
+	font: 11px sans-serif;
+}
+
+#result {
+	width: 200px;
+}
+
+.float-child {
+	float: left;
+	padding-left: 20px;
+}  
+
+.great-match {
+	font-size: larger;
+	color: forestgreen;
+}
+		
+</style>
+</head>
+<body>
+	<div id="map" class="float-child"></div>
+	<div id="result" class="float-child">
+		<table>
+			<tr>
+				<td style="padding-right: 30px"><h2>Result</h2></td>
+				<td><button type="button" onclick="clearStates()">Clear</button></td>
+			</tr>
+		</table>
+		<div id="resultsList"></div>
+	</div>
+<script src="/Users/sasha/Documents/resources/us-states-geo.js"></script>
+<script src="regionData.js"></script>
+<script type="text/javascript">
+//Width and height of map
+var width = 800;
+var height = 500;
+
+// D3 Projection
+var projection = d3.geo.albersUsa()
+	.translate([width/2, height/2]) // translate to center of screen
+	.scale([1000]);          		// scale things down so see entire US
+		
+// Define path generator
+var path = d3.geo.path() // path generator that will convert GeoJSON to SVG paths
+	.projection(projection);  // tell path generator to use albersUsa projection
+
+//Create SVG element and append map to the SVG
+var svg = d3.select("#map")
+			.append("svg")
+			.attr("width", width)
+			.attr("height", height);
+		
+// Bind the data to the SVG and create one path per GeoJSON feature
+var states = svg.selectAll("path")
+	.data(usStates.features)
+	.enter()
+	.append("path")
+	.attr("d", path)
+	.style("stroke", "#fff")
+	.style("stroke-width", "1")
+	.style("fill", "rgb(213,222,217)");
+
+// Add circle for DC
+var dcCoordinates = projection([-77.04, 38.907]);
+var dc = svg.selectAll("circle")
+	.data([{name: "District of Columbia"}])
+	.enter()
+	.append("circle")
+	.attr("cx", dcCoordinates[0])
+	.attr("cy", dcCoordinates[1])
+	.attr("r", 8)
+	.style("stroke", "#fff")
+	.style("stroke-width", "1")
+	.style("fill", "rgb(213,222,217)");
+
+
+var selectedStates = [];
+
+
+states.on("click", function(d, i) {
+	if (d.properties.clicked) {
+		this.style.fill = "rgb(213,222,217)";
+		d.properties.clicked = false;
+		selectedStates = selectedStates.filter(a => a!==d.properties.name)
+	} else {
+		this.style.fill = "rgb(255,99,71)";
+		d.properties.clicked = true;
+		selectedStates.push(d.properties.name)
+	}
+	updateInfo()
+});
+dc.on("click", function(d) {
+	console.log(d);
+	if (d.clicked) {
+		this.style.fill = "rgb(213,222,217)";
+		d.clicked = false;
+		selectedStates = selectedStates.filter(a => a!=='District of Columbia')
+	} else {
+		this.style.fill = "rgb(255,99,71)";
+		d.clicked = true;
+		selectedStates.push('District of Columbia')
+	}
+	updateInfo()
+});
+
+
+var clearStates = function() {
+	location.reload()
+}
+
+
+var jaccard = function(arr1, arr2) {
+	// intersection over union
+	let intersection = arr1.filter(x => arr2.includes(x));
+	let union = [...new Set([...arr1, ...arr2])];
+	let score = intersection.length / union.length;
+	if (typeof myVar !== 'undefined') {
+		score = 0;
+	}
+	return score
+}
+
+
+var updateInfo = function() {
+	const resultPanel = document.getElementById("resultsList");
+	resultPanel.innerHTML = "";
+
+	// Get best fit
+	console.log(selectedStates);
+	var jaccards = [];
+	for (var i = 0; i < regionData.length; i++) {
+		var jscore = jaccard(selectedStates, regionData[i].states);
+		if (jscore > 0) {
+			jaccards.push({name: regionData[i].name, score: jscore});
+		}
+	}
+	jaccards = jaccards.sort((a, b) => b.score - a.score)
+	// Remove duplicates
+	var jaccards2 = [];
+	var seen = {};
+	for (var i = 0; i < jaccards.length; i++) {
+		if (!seen[jaccards[i].name]) {
+			seen[jaccards[i].name] = true;
+			jaccards2.push(jaccards[i])
+		}
+	}
+	jaccards2 = jaccards2.slice(0, 10);
+	
+	for (var i = 0; i < jaccards2.length; i++) {
+		var score =  100*jaccards2[i].score;
+		var txt = parseInt(score) + '% ' + jaccards2[i].name;
+		var newP = document.createElement('p');
+		newP.innerHTML = txt;
+		if (score >= 80) {
+			console.log(score)
+			newP.classList.add('great-match');
+		}
+		resultPanel.appendChild(newP);
+	}
+
+	console.log(jaccards2)
+
+
+
+	// resultPanel.appendChild(p)
+
+}
+
+
+</script>
+</body>
+</html>
